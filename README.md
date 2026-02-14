@@ -17,6 +17,7 @@ this is project is built as part of treehacks 2026
         - [x]  `side_panel`: *a separate React app* that renders your UI. Receives data from the content script via Chrome's messaging API.
         - [x]  `background_service`: the *middleman* that routes messages between content script and sidepanel.
         - [x]  local dev server
-
+    - [ ] Update JSX parser using babel/parser (AST parsing)
+    - [ ] Refactor the current code and document learning on 1st day
 ## day 2 - github integration + collaborative feedback + generate change based on feedback
 
