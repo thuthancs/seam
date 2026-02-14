@@ -207,10 +207,10 @@ function App() {
   // Show editing UI when element is selected
   if (isSelected && elementData) {
     return (
-      <div style={{ padding: '16px' }}>
-        <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-            <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>Seam</h1>
+      <div className="p-4">
+        <div className="mb-4 pb-3 border-b border-gray-200">
+          <div className="flex justify-between items-center mb-1">
+            <h1 className="text-xl font-bold m-0">Seam</h1>
             <button
               onClick={() => {
                 const newMode = !selectionMode;
@@ -220,63 +220,37 @@ function App() {
                   enabled: newMode
                 });
               }}
-              style={{
-                padding: '4px 8px',
-                backgroundColor: selectionMode ? '#2563eb' : '#6b7280',
-                color: 'white',
-                borderRadius: '4px',
-                border: 'none',
-                fontSize: '10px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
+              className={`px-2 py-1 text-white rounded border-none text-[10px] font-medium cursor-pointer ${selectionMode ? 'bg-blue-600' : 'bg-gray-500'}`}
               title="Toggle selection mode"
             >
               {selectionMode ? 'ON' : 'OFF'}
             </button>
           </div>
-          <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Editing: <span style={{ fontWeight: '600' }}>{elementData.tagName}</span></p>
+          <p className="text-xs text-gray-500 m-0">Editing: <span className="font-semibold">{elementData.tagName}</span></p>
         </div>
 
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-2">
             Tailwind Classes:
           </label>
           <textarea
             value={editedClassName}
             onChange={(e) => setEditedClassName(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px',
-              border: '1px solid #d1d5db',
-              borderRadius: '4px',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              minHeight: '80px',
-              resize: 'vertical'
-            }}
+            className="w-full p-2 border border-gray-300 rounded font-mono text-xs min-h-[80px] resize-y"
             placeholder="Enter Tailwind classes (e.g., bg-blue-500 text-white p-4)"
           />
         </div>
 
         {(sourceClassNameExpression || elementData.tailwindClasses.length > 0) && (
-          <div style={{ marginBottom: '16px' }}>
-            <p style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Current Classes:</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+          <div className="mb-4">
+            <p className="text-sm font-medium mb-2">Current Classes:</p>
+            <div className="flex flex-wrap gap-1">
               {sourceClassNameExpression ? (
                 // Display parsed conditional expression parts
                 extractConditionalParts(sourceClassNameExpression).map((part, i) => (
                   <span
                     key={i}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: part === '?' || part === ':' ? '#f3f4f6' : '#dbeafe',
-                      color: part === '?' || part === ':' ? '#6b7280' : '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontFamily: 'monospace',
-                      fontWeight: part === '?' || part === ':' ? 'bold' : 'normal'
-                    }}
+                    className={`px-2 py-1 rounded text-[11px] font-mono ${part === '?' || part === ':' ? 'bg-gray-100 text-gray-500 font-bold' : 'bg-blue-100 text-blue-800 font-normal'}`}
                   >
                     {part}
                   </span>
@@ -286,14 +260,7 @@ function App() {
                 elementData.tailwindClasses.map((cls, i) => (
                   <span
                     key={i}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontFamily: 'monospace'
-                    }}
+                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-[11px] font-mono"
                   >
                     {cls}
                   </span>
@@ -303,22 +270,10 @@ function App() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="flex gap-2">
           <button
             onClick={handleSave}
-            style={{
-              flex: 1,
-              backgroundColor: '#2563eb',
-              color: 'white',
-              padding: '10px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
           >
             Apply Changes
           </button>
@@ -328,18 +283,7 @@ function App() {
               setIsSelected(false);
               setElementData(null);
             }}
-            style={{
-              padding: '10px 16px',
-              backgroundColor: '#f3f4f6',
-              color: '#374151',
-              borderRadius: '6px',
-              border: 'none',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+            className="py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
           >
             Cancel
           </button>
@@ -351,27 +295,20 @@ function App() {
   // Show preview when hovering (but not selected)
   if (hoveredData && !isSelected) {
     return (
-      <div style={{ padding: '16px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>Seam</h1>
-        <p style={{ color: '#666', marginBottom: '12px' }}>Hovering over: <span style={{ fontWeight: '600' }}>{hoveredData.tagName}</span></p>
-        <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
+      <div className="p-4">
+        <h1 className="text-xl font-bold mb-2">Seam</h1>
+        <p className="text-gray-600 mb-3">Hovering over: <span className="font-semibold">{hoveredData.tagName}</span></p>
+        <p className="text-xs text-gray-400 mb-4">
           {selectionMode ? 'Click to select and edit' : 'Enable selection mode to edit'}
         </p>
         {hoveredData.tailwindClasses.length > 0 && (
           <div>
-            <p style={{ fontSize: '12px', fontWeight: '500', marginBottom: '8px' }}>Classes:</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            <p className="text-xs font-medium mb-2">Classes:</p>
+            <div className="flex flex-wrap gap-1">
               {hoveredData.tailwindClasses.map((cls, i) => (
                 <span
                   key={i}
-                  style={{
-                    padding: '2px 6px',
-                    backgroundColor: '#f3f4f6',
-                    color: '#4b5563',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                    fontFamily: 'monospace'
-                  }}
+                  className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-mono"
                 >
                   {cls}
                 </span>
@@ -385,54 +322,33 @@ function App() {
 
   // Default state
   return (
-    <div style={{ padding: '16px' }}>
-      <h1 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>Seam</h1>
-      <p style={{ color: '#666', marginBottom: '12px' }}>Hover over an element to preview</p>
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-2">Seam</h1>
+      <p className="text-gray-600 mb-3">Hover over an element to preview</p>
 
       {/* Dev Server Connection */}
-      <div style={{
-        marginBottom: '16px',
-        padding: '12px',
-        backgroundColor: isConnected ? '#d1fae5' : '#fef3c7',
-        borderRadius: '6px',
-        border: `1px solid ${isConnected ? '#10b981' : '#f59e0b'}`
-      }}>
-        <div style={{ marginBottom: '8px' }}>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
+      <div className={`mb-4 p-3 rounded-md border ${isConnected ? 'bg-green-100 border-green-500' : 'bg-yellow-100 border-yellow-500'}`}>
+        <div className="mb-2">
+          <label className="block text-xs font-medium mb-1">
             Dev Server URL:
           </label>
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div className="flex gap-1">
             <input
               type="text"
               value={devServerUrl}
               onChange={(e) => setDevServerUrl(e.target.value)}
               placeholder="http://localhost:5173"
-              style={{
-                flex: 1,
-                padding: '6px 8px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                fontSize: '12px'
-              }}
+              className="flex-1 py-1.5 px-2 border border-gray-300 rounded text-xs"
             />
             <button
               onClick={handleConnect}
-              style={{
-                padding: '6px 12px',
-                backgroundColor: isConnected ? '#10b981' : '#3b82f6',
-                color: 'white',
-                borderRadius: '4px',
-                border: 'none',
-                fontSize: '12px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
+              className={`py-1.5 px-3 text-white rounded border-none text-xs font-medium cursor-pointer ${isConnected ? 'bg-green-500' : 'bg-blue-500'}`}
             >
               {isConnected ? 'Connected' : 'Connect'}
             </button>
           </div>
         </div>
-        <p style={{ fontSize: '11px', color: '#6b7280', margin: 0 }}>
+        <p className="text-[11px] text-gray-500 m-0">
           {isConnected
             ? '✓ Connected - Changes will be saved to source files'
             : 'Connect to your dev server to persist changes to source code'}
@@ -440,14 +356,9 @@ function App() {
       </div>
 
       {/* Selection Mode */}
-      <div style={{
-        padding: '12px',
-        backgroundColor: selectionMode ? '#dbeafe' : '#f3f4f6',
-        borderRadius: '6px',
-        border: `2px solid ${selectionMode ? '#3b82f6' : '#d1d5db'}`
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span style={{ fontSize: '14px', fontWeight: '500' }}>Selection Mode</span>
+      <div className={`p-3 rounded-md border-2 ${selectionMode ? 'bg-blue-100 border-blue-500' : 'bg-gray-100 border-gray-300'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium">Selection Mode</span>
           <button
             onClick={() => {
               const newMode = !selectionMode;
@@ -457,21 +368,12 @@ function App() {
                 enabled: newMode
               });
             }}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: selectionMode ? '#2563eb' : '#6b7280',
-              color: 'white',
-              borderRadius: '4px',
-              border: 'none',
-              fontSize: '12px',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
+            className={`py-1.5 px-3 text-white rounded border-none text-xs font-medium cursor-pointer ${selectionMode ? 'bg-blue-600' : 'bg-gray-500'}`}
           >
             {selectionMode ? 'ON' : 'OFF'}
           </button>
         </div>
-        <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
+        <p className="text-xs text-gray-500 m-0">
           {selectionMode
             ? 'Click any element to select and edit'
             : 'Enable selection mode to click and edit elements'}

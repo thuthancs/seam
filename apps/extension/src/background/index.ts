@@ -1,18 +1,6 @@
 // Helper function to inject content script if needed
 async function injectContentScript(tabId: number): Promise<void> {
     try {
-        // Get tab info to check if we can inject
-        const tab = await chrome.tabs.get(tabId);
-        const url = tab.url || '';
-
-        // Don't try to inject on chrome://, chrome-extension://, or about: pages
-        if (url.startsWith('chrome://') ||
-            url.startsWith('chrome-extension://') ||
-            url.startsWith('about:') ||
-            url.startsWith('moz-extension://')) {
-            return; // Can't inject on these pages
-        }
-
         // Try to send a ping message to check if content script is loaded
         try {
             await chrome.tabs.sendMessage(tabId, { type: 'PING' });
@@ -31,7 +19,7 @@ async function injectContentScript(tabId: number): Promise<void> {
 }
 
 // Message router between content script and sidepanel
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message) => {
     // Handle messages that don't need responses (fire and forget)
     if (message.type === "HOVER_ELEMENT") {
         chrome.runtime.sendMessage({

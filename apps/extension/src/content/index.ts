@@ -38,6 +38,7 @@ function getElementPath(element: HTMLElement): string {
     let current: HTMLElement | null = element;
 
     while (current && current !== document.body) {
+        // get the base (e.g., div, span, etc.)
         let selector = current.tagName.toLowerCase();
 
         if (current.id) {
@@ -182,21 +183,6 @@ document.addEventListener('click', (e) => {
         });
     }
 }, true); // Use capture phase to catch clicks early
-
-// ESC key to deselect
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && selectedElement) {
-        selectedElement = null;
-        if (highlightOverlay) {
-            highlightOverlay.style.display = 'none';
-        }
-        chrome.runtime.sendMessage({
-            type: 'ELEMENT_DESELECTED'
-        }).catch((error) => {
-            console.error('Failed to send ELEMENT_DESELECTED:', error);
-        });
-    }
-});
 
 // Listen for messages from sidepanel
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
