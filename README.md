@@ -17,8 +17,8 @@ this is project is built as part of treehacks 2026
         - [x]  `side_panel`: *a separate React app* that renders your UI. Receives data from the content script via Chrome's messaging API.
         - [x]  `background_service`: the *middleman* that routes messages between content script and sidepanel.
         - [x]  local dev server
-    - [ ] Update JSX parser using babel/parser (AST parsing)
-    - [ ] Refactor the current code and document learning on 1st day
+    - [x] Update JSX parser using babel/parser (AST parsing)
+    - [x] Refactor the current code and document learning on 1st day
 
 ### learning
 - planning before coding and using ai is an investment, not a waste of time. before the hackathon begins, i already spent sometime in notion and figjam performing some ux flow brainstorm and thinking. i then used claude as a teammate to ask me clarifying questions. i have seen a lot of startups like subframe or inspector showcasing how their products bridge the gap between design and production and i was thinking how to get some inspiration from them. 
@@ -43,8 +43,8 @@ https://www.loom.com/share/1790c5b7d40048f0b1b8a56868aff617
 - [ ] Add an AI feature to update the design of the component (using OpenAI and Claude)
     Basically, I can prompt AI to change the style of the current html element
 - [ ] Add an AI feature to change the design of the whole page. This means they can use some preset shortcuts to change the whole brand of the page (e.g., modern minimalism, retro, etc.) with reference URLs.
-- [ ] Integrate with GitHub to create a PR after all the changes
-- [ ] Test the whole flow: render the app in a browser -> edit the style in-browser -> apply the changes -> source code is updated -> create a PR directly to the GitHub repo of the project
+- [x] Integrate with GitHub to create a PR after all the changes
+- [x] Test the whole flow: render the app in a browser -> edit the style in-browser -> apply the changes -> source code is updated -> create a PR directly to the GitHub repo of the project
 - [ ] Add collaborative feedback feature where user can add comment on the page
 - [ ] Add an AI feature where AI reads all the feedback and suggest changes for the style of the app
 

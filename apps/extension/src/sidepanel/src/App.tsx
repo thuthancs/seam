@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import './App.css';
+import { updateFileContent } from './fileUpdater';
+import type { GitHubChange, GitHubRepository } from './github';
+import {
+  authenticateWithOAuth,
+  commitChanges,
+  createBranch,
+  createPullRequest,
+  getAuthenticatedUser,
+  getDefaultBranch,
+  getFileContent,
+  getUserRepositories,
+  parseRepo,
+  validateRepoAccess,
+  type GitHubConfig,
+} from './github';
 
 interface ElementData {
   className: string;
@@ -8,6 +23,10 @@ interface ElementData {
   id: string;
   elementPath?: string;
   styles: Record<string, string>;
+}
+
+interface ChangeItem extends GitHubChange {
+  selected?: boolean;
 }
 
 // Extract parts from conditional expression for display
@@ -40,6 +59,21 @@ function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [elementPath, setElementPath] = useState<string>(''); // Store element's path in DOM for identification
   const [elementIndex, setElementIndex] = useState<number | undefined>(undefined);
+
+  // GitHub integration state
+  const [githubRepo, setGithubRepo] = useState<string>('');
+  const [githubToken, setGithubToken] = useState<string>('');
+  const [isGithubConnected, setIsGithubConnected] = useState(false);
+  const [githubChanges, setGithubChanges] = useState<ChangeItem[]>([]);
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [prTitle, setPrTitle] = useState('');
+  const [prDescription, setPrDescription] = useState('');
+  const [isCreatingPR, setIsCreatingPR] = useState(false);
+  const [isConnectingGithub, setIsConnectingGithub] = useState(false);
+  const [showRepoSelection, setShowRepoSelection] = useState(false);
+  const [githubRepositories, setGithubRepositories] = useState<GitHubRepository[]>([]);
+  const [githubUsername, setGithubUsername] = useState<string>('');
+  const [repoSearchQuery, setRepoSearchQuery] = useState<string>('');
 
   // Fetch source className expression from dev server
   const fetchSourceClassNameExpression = useCallback(async (tagName: string, index?: number) => {
@@ -154,6 +188,22 @@ function App() {
 
           const result = await response.json();
           console.log('Changes persisted:', result);
+
+          // Track change for GitHub PR
+          if (isGithubConnected && githubRepo) {
+            const change: ChangeItem = {
+              id: `${Date.now()}-${Math.random()}`,
+              timestamp: Date.now(),
+              filePath: result.file || 'src/App.tsx', // Default file path
+              tagName: elementData.tagName,
+              oldClassName: elementData.className,
+              newClassName: editedClassName,
+              elementPath: elementPath,
+              elementIndex: elementIndex,
+              selected: true,
+            };
+            setGithubChanges((prev) => [...prev, change]);
+          }
         } catch (error) {
           console.error('Failed to persist to source code:', error);
           alert('Failed to save to source code. Make sure the dev server is running and connected.');
@@ -187,9 +237,185 @@ function App() {
     }
   };
 
-  // Load saved dev server URL on mount
+  // GitHub connection handler using OAuth
+  const handleGithubConnect = async () => {
+    setIsConnectingGithub(true);
+
+    try {
+      // Step 1: Authenticate with GitHub using OAuth
+      const { token } = await authenticateWithOAuth();
+
+      // Step 2: Get user info and repositories
+      const user = await getAuthenticatedUser(token);
+      const repos = await getUserRepositories(token);
+
+      // Step 3: Store token and show repo selection
+      setGithubToken(token);
+      setGithubUsername(user.login);
+      setGithubRepositories(repos);
+      setShowRepoSelection(true);
+    } catch (error) {
+      console.error('GitHub connection failed:', error);
+      alert(`Failed to connect to GitHub: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsConnectingGithub(false);
+    }
+  };
+
+  // Handle repository selection
+  const handleRepoSelect = async (repo: GitHubRepository) => {
+    try {
+      const config: GitHubConfig = {
+        owner: repo.owner.login,
+        repo: repo.name,
+        token: githubToken,
+      };
+
+      // Validate access
+      const hasAccess = await validateRepoAccess(config);
+      if (!hasAccess) {
+        throw new Error('Failed to access repository. Please ensure you have access.');
+      }
+
+      // Save connection state
+      setGithubRepo(repo.full_name);
+      setIsGithubConnected(true);
+      setShowRepoSelection(false);
+      setRepoSearchQuery('');
+
+      // Save to chrome storage
+      chrome.storage.local.set({
+        githubRepo: repo.full_name,
+        githubToken: githubToken, // Note: In production, this should be encrypted
+      });
+    } catch (error) {
+      console.error('Failed to select repository:', error);
+      alert(`Failed to connect to repository: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // PR creation handler
+  const handleCreatePR = async () => {
+    if (githubChanges.length === 0) {
+      alert('No changes to create PR with');
+      return;
+    }
+
+    const selectedChanges = githubChanges.filter((c) => c.selected);
+    if (selectedChanges.length === 0) {
+      alert('Please select at least one change to include in the PR');
+      return;
+    }
+
+    if (!prTitle.trim()) {
+      alert('Please enter a PR title');
+      return;
+    }
+
+    const parsed = parseRepo(githubRepo);
+    if (!parsed) {
+      alert('Invalid repo format');
+      return;
+    }
+
+    setIsCreatingPR(true);
+
+    try {
+      const config: GitHubConfig = {
+        owner: parsed.owner,
+        repo: parsed.repo,
+        token: githubToken,
+      };
+
+      // Get default branch
+      const baseBranch = await getDefaultBranch(config);
+      const branchName = `seam-changes-${Date.now()}`;
+
+      // Create branch
+      await createBranch(config, baseBranch, branchName);
+
+      // Process each change
+      const fileChanges: Array<{
+        path: string;
+        content: string;
+        message: string;
+        sha?: string;
+      }> = [];
+
+      for (const change of selectedChanges) {
+        try {
+          // GitHub expects paths relative to repo root; dev server may return absolute paths
+          const repoPath = (() => {
+            const p = change.filePath.replace(/\\/g, '/');
+            const appsIdx = p.indexOf('apps/');
+            if (appsIdx !== -1) return p.slice(appsIdx);
+            return p;
+          })();
+
+          // Get current file content
+          const { content: currentContent, sha } = await getFileContent(
+            config,
+            repoPath,
+            branchName
+          );
+
+          // Apply change using AST
+          const updatedContent = updateFileContent(
+            currentContent,
+            change.tagName,
+            change.newClassName,
+            change.elementIndex
+          );
+
+          fileChanges.push({
+            path: repoPath,
+            content: updatedContent,
+            message: `Update ${change.tagName} className: ${change.oldClassName} → ${change.newClassName}`,
+            sha,
+          });
+        } catch (error) {
+          console.error(`Failed to process change for ${change.filePath}:`, error);
+          // Continue with other changes
+        }
+      }
+
+      if (fileChanges.length === 0) {
+        throw new Error('No changes could be applied');
+      }
+
+      // Commit all changes
+      await commitChanges(config, branchName, fileChanges);
+
+      // Create PR
+      const { url } = await createPullRequest(
+        config,
+        prTitle,
+        prDescription || `Updated ${selectedChanges.length} element(s) with new Tailwind classes.\n\nChanges:\n${selectedChanges.map((c) => `- ${c.tagName}: ${c.oldClassName} → ${c.newClassName}`).join('\n')}`,
+        branchName,
+        baseBranch
+      );
+
+      // Open PR in new tab
+      chrome.tabs.create({ url });
+
+      // Clear selected changes
+      setGithubChanges((prev) => prev.filter((c) => !selectedChanges.find((sc) => sc.id === c.id)));
+      setShowPRModal(false);
+      setPrTitle('');
+      setPrDescription('');
+
+      alert('Pull request created successfully!');
+    } catch (error) {
+      console.error('Failed to create PR:', error);
+      alert(`Failed to create PR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsCreatingPR(false);
+    }
+  };
+
+  // Load saved dev server URL and GitHub config on mount
   useEffect(() => {
-    chrome.storage.local.get(['devServerUrl'], (result) => {
+    chrome.storage.local.get(['devServerUrl', 'githubRepo', 'githubToken', 'githubChanges'], (result) => {
       if (result.devServerUrl) {
         setDevServerUrl(result.devServerUrl);
         // Test connection
@@ -201,8 +427,39 @@ function App() {
           })
           .catch(() => { });
       }
+
+      if (result.githubRepo && result.githubToken) {
+        setGithubRepo(result.githubRepo);
+        setGithubToken(result.githubToken);
+        // Validate connection
+        const parsed = parseRepo(result.githubRepo);
+        if (parsed) {
+          validateRepoAccess({
+            owner: parsed.owner,
+            repo: parsed.repo,
+            token: result.githubToken,
+          })
+            .then((hasAccess) => {
+              if (hasAccess) {
+                setIsGithubConnected(true);
+              }
+            })
+            .catch(() => { });
+        }
+      }
+
+      if (result.githubChanges) {
+        setGithubChanges(result.githubChanges);
+      }
     });
   }, []);
+
+  // Persist changes to storage
+  useEffect(() => {
+    if (githubChanges.length > 0) {
+      chrome.storage.local.set({ githubChanges });
+    }
+  }, [githubChanges]);
 
   // Show editing UI when element is selected
   if (isSelected && elementData) {
@@ -288,6 +545,96 @@ function App() {
             Cancel
           </button>
         </div>
+
+        {/* Create PR Button (when GitHub connected and changes exist) */}
+        {isGithubConnected && githubChanges.length > 0 && (
+          <div className="mt-4">
+            <button
+              onClick={() => {
+                setShowPRModal(true);
+                if (!prTitle.trim()) setPrTitle('Update Tailwind classes');
+              }}
+              className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md border-none text-sm font-medium cursor-pointer"
+            >
+              Create Pull Request ({githubChanges.length} change{githubChanges.length !== 1 ? 's' : ''})
+            </button>
+          </div>
+        )}
+
+        {/* PR Creation Modal - must be in this view too so it shows when element is selected */}
+        {showPRModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+              <h2 className="text-lg font-bold mb-4">Create Pull Request</h2>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">PR Title:</label>
+                <input
+                  type="text"
+                  value={prTitle}
+                  onChange={(e) => setPrTitle(e.target.value)}
+                  placeholder="Update Tailwind classes"
+                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">PR Description:</label>
+                <textarea
+                  value={prDescription}
+                  onChange={(e) => setPrDescription(e.target.value)}
+                  placeholder="Describe your changes..."
+                  className="w-full p-2 border border-gray-300 rounded text-sm min-h-[100px]"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">Select Changes:</label>
+                <div className="border border-gray-300 rounded p-2 max-h-[200px] overflow-y-auto">
+                  {githubChanges.map((change) => (
+                    <label key={change.id} className="flex items-start mb-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={change.selected || false}
+                        onChange={(e) => {
+                          setGithubChanges((prev) =>
+                            prev.map((c) =>
+                              c.id === change.id ? { ...c, selected: e.target.checked } : c
+                            )
+                          );
+                        }}
+                        className="mt-1 mr-2"
+                      />
+                      <div className="flex-1">
+                        <div className="text-xs font-medium">{change.filePath}</div>
+                        <div className="text-xs text-gray-600">
+                          {change.tagName}: <span className="line-through">{change.oldClassName}</span>{' '}
+                          → <span className="font-semibold">{change.newClassName}</span>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreatePR}
+                  disabled={isCreatingPR}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
+                >
+                  {isCreatingPR ? 'Creating PR...' : 'Create Pull Request'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPRModal(false);
+                    setPrTitle('');
+                    setPrDescription('');
+                  }}
+                  className="py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -355,6 +702,150 @@ function App() {
         </p>
       </div>
 
+      {/* GitHub Connection */}
+      <div className={`mb-4 p-3 rounded-md border ${isGithubConnected ? 'bg-green-100 border-green-500' : 'bg-yellow-100 border-yellow-500'}`}>
+        <div className="mb-2">
+          <button
+            onClick={handleGithubConnect}
+            disabled={isGithubConnected || isConnectingGithub}
+            className={`w-full py-1.5 px-3 text-white rounded border-none text-xs font-medium cursor-pointer ${isGithubConnected
+              ? 'bg-green-500'
+              : isConnectingGithub
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-500 hover:bg-blue-600'
+              }`}
+          >
+            {isConnectingGithub
+              ? 'Connecting...'
+              : isGithubConnected
+                ? 'Connected'
+                : 'Connect with GitHub'}
+          </button>
+          {isGithubConnected && (
+            <button
+              onClick={() => {
+                setIsGithubConnected(false);
+                setGithubRepo('');
+                setGithubToken('');
+                setGithubUsername('');
+                chrome.storage.local.remove(['githubRepo', 'githubToken']);
+              }}
+              className="w-full mt-2 py-1.5 px-3 bg-red-500 hover:bg-red-600 text-white rounded border-none text-xs font-medium cursor-pointer"
+            >
+              Disconnect
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-500 m-0">
+          {isGithubConnected
+            ? `✓ Connected to ${githubRepo} - Ready to create PRs`
+            : isConnectingGithub
+              ? 'Opening GitHub authorization...'
+              : 'Click "Connect with GitHub" to authorize and select a repository'}
+        </p>
+      </div>
+
+      {/* Repository Selection Modal */}
+      {showRepoSelection && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h2 className="text-lg font-bold mb-4">
+              Select Repository {githubUsername && `(${githubUsername})`}
+            </h2>
+
+            {/* Search input */}
+            <div className="mb-4">
+              <input
+                type="text"
+                value={repoSearchQuery}
+                onChange={(e) => setRepoSearchQuery(e.target.value)}
+                placeholder="Search repositories..."
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                autoFocus
+              />
+            </div>
+
+            {/* Repository list */}
+            <div className="border border-gray-300 rounded max-h-[400px] overflow-y-auto">
+              {githubRepositories
+                .filter((repo) =>
+                  repo.full_name.toLowerCase().includes(repoSearchQuery.toLowerCase()) ||
+                  (repo.description && repo.description.toLowerCase().includes(repoSearchQuery.toLowerCase()))
+                )
+                .map((repo) => (
+                  <button
+                    key={repo.id}
+                    onClick={() => handleRepoSelect(repo)}
+                    className="w-full text-left p-3 hover:bg-gray-100 border-b border-gray-200 last:border-b-0 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{repo.full_name}</span>
+                          {repo.private && (
+                            <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
+                              Private
+                            </span>
+                          )}
+                        </div>
+                        {repo.description && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{repo.description}</p>
+                        )}
+                      </div>
+                      <svg
+                        className="w-5 h-5 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </button>
+                ))}
+            </div>
+
+            {githubRepositories.filter((repo) =>
+              repo.full_name.toLowerCase().includes(repoSearchQuery.toLowerCase()) ||
+              (repo.description && repo.description.toLowerCase().includes(repoSearchQuery.toLowerCase()))
+            ).length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">No repositories found</p>
+              )}
+
+            <div className="mt-4">
+              <button
+                onClick={() => {
+                  setShowRepoSelection(false);
+                  setGithubToken('');
+                  setGithubRepositories([]);
+                  setRepoSearchQuery('');
+                }}
+                className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create PR Button */}
+      {isGithubConnected && githubChanges.length > 0 && (
+        <div className="mb-4">
+          <button
+            onClick={() => setShowPRModal(true)}
+            className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md border-none text-sm font-medium cursor-pointer"
+          >
+            Create Pull Request ({githubChanges.length} change{githubChanges.length !== 1 ? 's' : ''})
+          </button>
+        </div>
+      )}
+
       {/* Selection Mode */}
       <div className={`p-3 rounded-md border-2 ${selectionMode ? 'bg-blue-100 border-blue-500' : 'bg-gray-100 border-gray-300'}`}>
         <div className="flex items-center justify-between mb-2">
@@ -379,6 +870,85 @@ function App() {
             : 'Enable selection mode to click and edit elements'}
         </p>
       </div>
+
+      {/* PR Creation Modal */}
+      {showPRModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h2 className="text-lg font-bold mb-4">Create Pull Request</h2>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">PR Title:</label>
+              <input
+                type="text"
+                value={prTitle}
+                onChange={(e) => setPrTitle(e.target.value)}
+                placeholder="Update Tailwind classes"
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">PR Description:</label>
+              <textarea
+                value={prDescription}
+                onChange={(e) => setPrDescription(e.target.value)}
+                placeholder="Describe your changes..."
+                className="w-full p-2 border border-gray-300 rounded text-sm min-h-[100px]"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Select Changes:</label>
+              <div className="border border-gray-300 rounded p-2 max-h-[200px] overflow-y-auto">
+                {githubChanges.map((change) => (
+                  <label key={change.id} className="flex items-start mb-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={change.selected || false}
+                      onChange={(e) => {
+                        setGithubChanges((prev) =>
+                          prev.map((c) =>
+                            c.id === change.id ? { ...c, selected: e.target.checked } : c
+                          )
+                        );
+                      }}
+                      className="mt-1 mr-2"
+                    />
+                    <div className="flex-1">
+                      <div className="text-xs font-medium">{change.filePath}</div>
+                      <div className="text-xs text-gray-600">
+                        {change.tagName}: <span className="line-through">{change.oldClassName}</span>{' '}
+                        → <span className="font-semibold">{change.newClassName}</span>
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreatePR}
+                disabled={isCreatingPR}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
+              >
+                {isCreatingPR ? 'Creating PR...' : 'Create Pull Request'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowPRModal(false);
+                  setPrTitle('');
+                  setPrDescription('');
+                }}
+                className="py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

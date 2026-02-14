@@ -291,11 +291,15 @@ function seamApiPlugin() {
               // Write back to file
               fs.writeFileSync(sourceFile, content, 'utf8')
 
+              // Return path relative to workspace root for GitHub (repo expects relative paths)
+              const workspaceRoot = path.resolve(__dirname, '../..')
+              const repoRelativePath = path.relative(workspaceRoot, sourceFile)
+
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({
                 success: true,
                 message: 'Classes updated in source file',
-                file: sourceFile
+                file: repoRelativePath
               }))
             } catch (error) {
               const err = error as Error

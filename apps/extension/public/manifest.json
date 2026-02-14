@@ -7,7 +7,12 @@
         "sidePanel",
         "activeTab",
         "scripting",
-        "storage"
+        "storage",
+        "identity"
+    ],
+    "host_permissions": [
+        "https://github.com/*",
+        "https://api.github.com/*"
     ],
     "optional_host_permissions": [
         "http://localhost/*"
