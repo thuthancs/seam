@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css';
 import { updateFileContent } from './fileUpdater';
 import type { GitHubChange, GitHubRepository } from './github';
@@ -51,6 +51,7 @@ function extractConditionalParts(expression: string): string[] {
 function App() {
   const [elementData, setElementData] = useState<ElementData | null>(null);
   const [editedClassName, setEditedClassName] = useState('');
+  const hasUserEditedRef = useRef(false);
   const [sourceClassNameExpression, setSourceClassNameExpression] = useState<string>('');
   const [isSelected, setIsSelected] = useState(false);
   const [hoveredData, setHoveredData] = useState<ElementData | null>(null);
@@ -98,10 +99,11 @@ function App() {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.classNameExpression) {
-          setSourceClassNameExpression(result.classNameExpression);
-          // Do NOT overwrite editedClassName - the user may have already edited.
-          // editedClassName is set from the DOM on ELEMENT_SELECTED; overwriting here
-          // would replace user edits with the (possibly stale) server value.
+          // Only overwrite if user hasn't edited - otherwise we'd replace applied
+          // classes with the stale server value (e.g. "mr-2" instead of "m-4 w-88 border...")
+          if (!hasUserEditedRef.current) {
+            setSourceClassNameExpression(result.classNameExpression);
+          }
         }
       }
     } catch (error) {
@@ -121,6 +123,7 @@ function App() {
       } else if (message.type === 'ELEMENT_SELECTED') {
         if (message.data) {
           setElementData(message.data);
+          hasUserEditedRef.current = false;
           setEditedClassName(message.data.className);
           setIsSelected(true);
           setHoveredData(null);
@@ -167,6 +170,7 @@ function App() {
       const newTailwindClasses = editedClassName.trim().split(/\s+/).filter(Boolean);
       setElementData((prev) => prev ? { ...prev, className: editedClassName, tailwindClasses: newTailwindClasses } : null);
       setSourceClassNameExpression(editedClassName);
+      hasUserEditedRef.current = true; // Prevent late fetch from overwriting
 
       // Persist to source code if dev server is connected
       if (isConnected && devServerUrl) {
@@ -514,7 +518,10 @@ function App() {
           </label>
           <textarea
             value={editedClassName}
-            onChange={(e) => setEditedClassName(e.target.value)}
+            onChange={(e) => {
+              hasUserEditedRef.current = true;
+              setEditedClassName(e.target.value);
+            }}
             className="w-full p-2 border border-gray-300 rounded font-mono text-xs min-h-[80px] resize-y"
             placeholder="Enter Tailwind classes (e.g., bg-blue-500 text-white p-4)"
           />
