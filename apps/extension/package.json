@@ -1,0 +1,15 @@
+{
+    "name": "seam-extension",
+    "version": "1.0.0",
+    "scripts": {
+        "build": "npm run build:sidepanel && npm run build:scripts && npm run copy:manifest",
+        "build:sidepanel": "cd src/sidepanel && npm install && npm run build",
+        "build:scripts": "tsc",
+        "copy:manifest": "mkdir -p dist && cp public/manifest.json dist/manifest.json",
+        "dev": "cd src/sidepanel && npm run dev"
+    },
+    "devDependencies": {
+        "@types/chrome": "^0.0.268",
+        "typescript": "~5.9.3"
+    }
+}

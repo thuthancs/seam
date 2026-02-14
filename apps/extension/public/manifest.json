@@ -1,0 +1,25 @@
+{
+    "manifest_version": 3,
+    "name": "Seam - Design Tool",
+    "version": "1.0.0",
+    "description": "Seamless design and frontend development tool",
+    "permissions": [
+        "sidePanel",
+        "activeTab",
+        "scripting",
+        "storage"
+    ],
+    "optional_host_permissions": [
+        "http://localhost/*"
+    ],
+    "background": {
+        "service_worker": "background/index.js",
+        "type": "module"
+    },
+    "side_panel": {
+        "default_path": "sidepanel/index.html"
+    },
+    "action": {
+        "default_title": "Open Seam - Design Tool"
+    }
+}

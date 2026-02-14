@@ -31,8 +31,8 @@ function App() {
 
   return (
     <>
-      <h1>Welcome to seam!</h1>
-      <p>This is a simple to-do list app to showcase how seam works.</p>
+      <h1 className="text-4xl font-bold">Welcome to seam!</h1>
+      <p className="font-light">This is a simple to-do list app to showcase how seam works.</p>
       <input onChange={handleInputChange} value={todoItem?.title} type="text" placeholder="Add a new todo item" />
       <button onClick={handleAddTodo}>Add</button>
       <ul>

@@ -10,7 +10,7 @@ this is project is built as part of treehacks 2026
     - Edit → mutate className directly on the DOM (instant preview)
     - Persist → send to dev server → write to source file
 - TODO:
-    - [ ] Write a simple to-do list in React + TypeScript + TailwindCSS
+    - [x] Write a simple to-do list in React + TypeScript + TailwindCSS
     - Create a chrome extension sidepanel with these key components
         - [ ]  `content_script`: *runs inside the user's page*
             - [ ]  handles hover detection and DOM manipulation (when hovered on a component, the code snippet that defines the style of that component should be displayed on the sidepanel)
