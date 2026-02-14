@@ -99,7 +99,9 @@ function App() {
         const result = await response.json();
         if (result.success && result.classNameExpression) {
           setSourceClassNameExpression(result.classNameExpression);
-          setEditedClassName(result.classNameExpression);
+          // Do NOT overwrite editedClassName - the user may have already edited.
+          // editedClassName is set from the DOM on ELEMENT_SELECTED; overwriting here
+          // would replace user edits with the (possibly stale) server value.
         }
       }
     } catch (error) {
@@ -341,7 +343,21 @@ function App() {
       // Create branch
       await createBranch(config, baseBranch, branchName);
 
-      // Process each change
+      // Group changes by file path - multiple changes to the same file must be applied
+      // together and committed once, otherwise the 2nd commit fails (SHA mismatch).
+      const changesByFile = new Map<string, typeof selectedChanges>();
+      for (const change of selectedChanges) {
+        const repoPath = (() => {
+          const p = change.filePath.replace(/\\/g, '/');
+          const appsIdx = p.indexOf('apps/');
+          if (appsIdx !== -1) return p.slice(appsIdx);
+          return p;
+        })();
+        const list = changesByFile.get(repoPath) ?? [];
+        list.push(change);
+        changesByFile.set(repoPath, list);
+      }
+
       const fileChanges: Array<{
         path: string;
         content: string;
@@ -349,40 +365,36 @@ function App() {
         sha?: string;
       }> = [];
 
-      for (const change of selectedChanges) {
+      for (const [repoPath, fileChangesList] of changesByFile) {
         try {
-          // GitHub expects paths relative to repo root; dev server may return absolute paths
-          const repoPath = (() => {
-            const p = change.filePath.replace(/\\/g, '/');
-            const appsIdx = p.indexOf('apps/');
-            if (appsIdx !== -1) return p.slice(appsIdx);
-            return p;
-          })();
-
-          // Get current file content
+          // Get current file content (fetch once per file)
           const { content: currentContent, sha } = await getFileContent(
             config,
             repoPath,
             branchName
           );
 
-          // Apply change using AST
-          const updatedContent = updateFileContent(
-            currentContent,
-            change.tagName,
-            change.newClassName,
-            change.elementIndex
-          );
+          // Apply all changes to this file in order
+          let content = currentContent;
+          const messages: string[] = [];
+          for (const change of fileChangesList) {
+            content = updateFileContent(
+              content,
+              change.tagName,
+              change.newClassName,
+              change.elementIndex
+            );
+            messages.push(`${change.tagName}: ${change.oldClassName} → ${change.newClassName}`);
+          }
 
           fileChanges.push({
             path: repoPath,
-            content: updatedContent,
-            message: `Update ${change.tagName} className: ${change.oldClassName} → ${change.newClassName}`,
+            content,
+            message: `Update ${fileChangesList.length} element(s): ${messages.join('; ')}`,
             sha,
           });
         } catch (error) {
-          console.error(`Failed to process change for ${change.filePath}:`, error);
-          // Continue with other changes
+          console.error(`Failed to process changes for ${repoPath}:`, error);
         }
       }
 

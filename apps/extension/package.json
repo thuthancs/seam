@@ -5,7 +5,7 @@
         "build": "npm run build:sidepanel && npm run build:scripts && npm run copy:manifest",
         "build:sidepanel": "cd src/sidepanel && npm install && npm run build",
         "build:scripts": "tsc",
-        "copy:manifest": "mkdir -p dist && cp public/manifest.json dist/manifest.json",
+        "copy:manifest": "mkdir -p dist && cp public/manifest.json dist/manifest.json && cp public/seam_icon.png dist/seam_icon.png",
         "dev": "cd src/sidepanel && npm run dev"
     },
     "devDependencies": {
