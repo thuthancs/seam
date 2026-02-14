@@ -33,11 +33,11 @@ function App() {
     <>
       <h1 className="text-4xl font-bold">Welcome to seam!</h1>
       <p className="font-light">This is a simple to-do list app to showcase how seam works.</p>
-      <input onChange={handleInputChange} value={todoItem?.title} type="text" placeholder="Add a new todo item" />
-      <button onClick={handleAddTodo}>Add</button>
+      <input className="border border-[1px] rounded-md p-2 width-400px m-8 w-96" onChange={handleInputChange} value={todoItem?.title} type="text" placeholder="Add a new todo item" />
+      <button className="w-32 bg-blue-500 text-white rounded-md p-2" onClick={handleAddTodo}>Add</button>
       <ul>
         {todoList.map((item) => (
-          <li key={item.id}>{item.title}</li>
+          <li className="align-left" key={item.id}>{item.title}</li>
         ))}
       </ul>
     </>

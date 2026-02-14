@@ -134,24 +134,15 @@ document.addEventListener('click', (e) => {
     }
     if (!target || target === highlightOverlay) return;
 
-    // Don't intercept clicks on interactive form elements - allow normal behavior
     const tagName = target.tagName.toLowerCase();
-    const isFormElement = tagName === 'input' ||
-        tagName === 'button' ||
-        tagName === 'select' ||
-        tagName === 'textarea';
 
     // For links, allow navigation unless it's just for styling
     if (tagName === 'a' && target.getAttribute('href') && !target.getAttribute('href')?.startsWith('#')) {
         return; // Allow navigation for real links
     }
 
-    // For form elements, allow normal interaction
-    if (isFormElement) {
-        return;
-    }
-
     // Prevent default to avoid navigation or other click behaviors
+    // This allows selection of all elements including form elements
     e.preventDefault();
     e.stopPropagation();
 
