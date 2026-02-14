@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import './App.css';
 
 interface ElementData {
@@ -10,15 +10,68 @@ interface ElementData {
   styles: Record<string, string>;
 }
 
+// Extract parts from conditional expression for display
+function extractConditionalParts(expression: string): string[] {
+  const parts: string[] = [];
+  // Match the pattern and extract parts
+  const match = expression.match(/^(.+?)\s*\?\s*['"](.*?)['"]\s*:\s*['"](.*?)['"]$/);
+  if (match) {
+    parts.push(match[1].trim()); // condition
+    parts.push('?');
+    parts.push(`'${match[2]}'`); // true value
+    parts.push(match[2]); // classes from true value
+    parts.push(':');
+    parts.push(`''`); // false value
+  } else {
+    // Not a conditional, split by spaces for regular classes
+    parts.push(...expression.split(' ').filter(c => c.trim()));
+  }
+  return parts;
+}
+
 function App() {
   const [elementData, setElementData] = useState<ElementData | null>(null);
   const [editedClassName, setEditedClassName] = useState('');
+  const [sourceClassNameExpression, setSourceClassNameExpression] = useState<string>('');
   const [isSelected, setIsSelected] = useState(false);
   const [hoveredData, setHoveredData] = useState<ElementData | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [devServerUrl, setDevServerUrl] = useState<string>('');
   const [isConnected, setIsConnected] = useState(false);
   const [elementPath, setElementPath] = useState<string>(''); // Store element's path in DOM for identification
+  const [elementIndex, setElementIndex] = useState<number | undefined>(undefined);
+
+  // Fetch source className expression from dev server
+  const fetchSourceClassNameExpression = useCallback(async (tagName: string, index?: number) => {
+    if (!devServerUrl) {
+      // If not connected, use the rendered className
+      return;
+    }
+
+    try {
+      const response = await fetch(`${devServerUrl}/api/get-classname-expression`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tagName,
+          elementIndex: index,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.classNameExpression) {
+          setSourceClassNameExpression(result.classNameExpression);
+          setEditedClassName(result.classNameExpression);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch source className expression:', error);
+      // Fall back to rendered className
+    }
+  }, [devServerUrl]);
 
   useEffect(() => {
     // Listen for hover and selection events from content script
@@ -35,17 +88,24 @@ function App() {
           setIsSelected(true);
           setHoveredData(null);
           // Store element path if provided
-          const msg = message as { type: string; data?: ElementData; elementPath?: string };
+          const msg = message as { type: string; data?: ElementData; elementPath?: string; elementIndex?: number };
           if (msg.elementPath) {
             setElementPath(msg.elementPath);
           } else if (message.data?.elementPath) {
             setElementPath(message.data.elementPath);
           }
+          if (msg.elementIndex !== undefined) {
+            setElementIndex(msg.elementIndex);
+          }
+          // Fetch source className expression from dev server
+          fetchSourceClassNameExpression(message.data.tagName, msg.elementIndex);
         }
       } else if (message.type === 'ELEMENT_DESELECTED') {
         setIsSelected(false);
         setElementData(null);
         setEditedClassName('');
+        setSourceClassNameExpression('');
+        setElementIndex(undefined);
       }
     };
 
@@ -54,7 +114,7 @@ function App() {
     return () => {
       chrome.runtime.onMessage.removeListener(messageHandler);
     };
-  }, [isSelected]);
+  }, [isSelected, fetchSourceClassNameExpression]);
 
   const handleSave = async () => {
     if (elementData) {
@@ -76,6 +136,7 @@ function App() {
           oldClassName: elementData.className,
           newClassName: editedClassName,
           tailwindClasses: elementData.tailwindClasses,
+          elementIndex: elementIndex,
         };
         try {
           const response = await fetch(fetchUrl, {
@@ -131,6 +192,14 @@ function App() {
     chrome.storage.local.get(['devServerUrl'], (result) => {
       if (result.devServerUrl) {
         setDevServerUrl(result.devServerUrl);
+        // Test connection
+        fetch(`${result.devServerUrl}/api/health`)
+          .then(res => {
+            if (res.ok) {
+              setIsConnected(true);
+            }
+          })
+          .catch(() => { });
       }
     });
   }, []);
@@ -190,25 +259,46 @@ function App() {
           />
         </div>
 
-        {elementData.tailwindClasses.length > 0 && (
+        {(sourceClassNameExpression || elementData.tailwindClasses.length > 0) && (
           <div style={{ marginBottom: '16px' }}>
             <p style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Current Classes:</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-              {elementData.tailwindClasses.map((cls, i) => (
-                <span
-                  key={i}
-                  style={{
-                    padding: '4px 8px',
-                    backgroundColor: '#dbeafe',
-                    color: '#1e40af',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontFamily: 'monospace'
-                  }}
-                >
-                  {cls}
-                </span>
-              ))}
+              {sourceClassNameExpression ? (
+                // Display parsed conditional expression parts
+                extractConditionalParts(sourceClassNameExpression).map((part, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      padding: '4px 8px',
+                      backgroundColor: part === '?' || part === ':' ? '#f3f4f6' : '#dbeafe',
+                      color: part === '?' || part === ':' ? '#6b7280' : '#1e40af',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontFamily: 'monospace',
+                      fontWeight: part === '?' || part === ':' ? 'bold' : 'normal'
+                    }}
+                  >
+                    {part}
+                  </span>
+                ))
+              ) : (
+                // Fallback to regular class display
+                elementData.tailwindClasses.map((cls, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      padding: '4px 8px',
+                      backgroundColor: '#dbeafe',
+                      color: '#1e40af',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {cls}
+                  </span>
+                ))
+              )}
             </div>
           </div>
         )}

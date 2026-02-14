@@ -67,6 +67,13 @@ function getElementPath(element: HTMLElement): string {
     return path.join(' > ');
 }
 
+// Helper to get element index (which occurrence of this tagName in the document)
+function getElementIndex(element: HTMLElement): number {
+    const tagName = element.tagName.toLowerCase();
+    const allElements = Array.from(document.querySelectorAll(tagName));
+    return allElements.indexOf(element);
+}
+
 function extractStyles(element: HTMLElement) {
     // Handle both string (HTML) and SVGAnimatedString (SVG) className
     const classNameValue = typeof element.className === 'string'
@@ -163,11 +170,13 @@ document.addEventListener('click', (e) => {
         highlightElement(target);
 
         const styleData = extractStyles(target);
-        console.log('Sending selection data:', styleData);
+        const elementIndex = getElementIndex(target);
+        console.log('Sending selection data:', styleData, 'elementIndex:', elementIndex);
         chrome.runtime.sendMessage({
             type: 'ELEMENT_SELECTED',
             data: styleData,
-            elementPath: styleData.elementPath
+            elementPath: styleData.elementPath,
+            elementIndex: elementIndex
         }).catch((error) => {
             console.error('Failed to send ELEMENT_SELECTED:', error);
         });

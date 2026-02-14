@@ -21,3 +21,6 @@ this is project is built as part of treehacks 2026
     - [ ] Refactor the current code and document learning on 1st day
 ## day 2 - github integration + collaborative feedback + generate change based on feedback
 
+## learning
+- day 1: 
+
