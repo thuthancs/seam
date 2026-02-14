@@ -38,10 +38,10 @@ function App() {
     } : item));
   };
   return <>
-      <h1 className="text-4xl font-md">Welcome to seam!</h1>
-      <p className="font-light">This is a simple to-do list app to showcase how seam works.</p>
-      <input className="border border-[1px] rounded-md p-2 w-[480px] m-8 w-96" onChange={handleInputChange} value={todoItem?.title} type="text" placeholder="Add a new todo item" />
-      <button className="w-32 bg-blue-500 text-white rounded-md p-2" onClick={handleAddTodo}>Add</button>
+      <h1 className="text-4xl font-bold">Welcome to seam!</h1>
+      <p className="font-medium">This is a simple to-do list app to showcase how seam works.</p>
+      <input className="mr-2 rounded-md p-2 w-96 border border-black m-4" onChange={handleInputChange} value={todoItem?.title} type="text" placeholder="Add a new todo item" />
+      <button className="w-32 bg-black text-white rounded-md p-2" onClick={handleAddTodo}>Add</button>
       <ul>
         {todoList.map(item => <li className="text-left border border-[1px] border-gray-200 p-2 rounded-md mb-4" key={item.id}>
             <label className="inline-flex items-center">

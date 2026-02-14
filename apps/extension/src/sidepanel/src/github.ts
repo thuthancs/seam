@@ -40,8 +40,6 @@ export interface GitHubRepository {
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || '';
 const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET || '';
 const GITHUB_OAUTH_SCOPE = 'repo';
-// chrome.identity.getRedirectURL() returns the OAuth redirect URI for Chrome extensions
-// Format: https://[extension-id].chromiumapp.org/
 const GITHUB_OAUTH_REDIRECT_URI = chrome.identity.getRedirectURL();
 const GITHUB_TOKEN_EXCHANGE_URL = 'https://github.com/login/oauth/access_token';
 

@@ -71,6 +71,7 @@ function App() {
   const [isCreatingPR, setIsCreatingPR] = useState(false);
   const [isConnectingGithub, setIsConnectingGithub] = useState(false);
   const [showRepoSelection, setShowRepoSelection] = useState(false);
+  const [showDevServerModal, setShowDevServerModal] = useState(false);
   const [githubRepositories, setGithubRepositories] = useState<GitHubRepository[]>([]);
   const [githubUsername, setGithubUsername] = useState<string>('');
   const [repoSearchQuery, setRepoSearchQuery] = useState<string>('');
@@ -160,6 +161,11 @@ function App() {
         }
       });
 
+      // Update displayed state so Current Classes reflects the applied changes
+      const newTailwindClasses = editedClassName.trim().split(/\s+/).filter(Boolean);
+      setElementData((prev) => prev ? { ...prev, className: editedClassName, tailwindClasses: newTailwindClasses } : null);
+      setSourceClassNameExpression(editedClassName);
+
       // Persist to source code if dev server is connected
       if (isConnected && devServerUrl) {
         const fetchUrl = `${devServerUrl}/api/update-classes`;
@@ -226,6 +232,7 @@ function App() {
 
       if (response.ok) {
         setIsConnected(true);
+        setShowDevServerModal(false);
         // Save to chrome storage
         chrome.storage.local.set({ devServerUrl });
       } else {
@@ -467,8 +474,10 @@ function App() {
       <div className="p-4">
         <div className="mb-4 pb-3 border-b border-gray-200">
           <div className="flex justify-between items-center mb-1">
-            <h1 className="text-xl font-bold m-0">Seam</h1>
+            <h1 className="text-xl font-bold m-0">Select Mode</h1>
             <button
+              type="button"
+              title="Toggle selection mode"
               onClick={() => {
                 const newMode = !selectionMode;
                 setSelectionMode(newMode);
@@ -477,10 +486,11 @@ function App() {
                   enabled: newMode
                 });
               }}
-              className={`px-2 py-1 text-white rounded border-none text-[10px] font-medium cursor-pointer ${selectionMode ? 'bg-blue-600' : 'bg-gray-500'}`}
-              title="Toggle selection mode"
-            >
-              {selectionMode ? 'ON' : 'OFF'}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-black transition-colors duration-200 focus:outline-none ${selectionMode ? 'bg-black' : 'bg-white'}`}
+              >
+              <span
+                className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-200 ease-in-out ${selectionMode ? 'left-[calc(100%-1.25rem)] h-5 w-5 bg-white' : 'left-px h-[1.2rem] w-[1.2rem] bg-black'}`}
+              />
             </button>
           </div>
           <p className="text-xs text-gray-500 m-0">Editing: <span className="font-semibold">{elementData.tagName}</span></p>
@@ -527,66 +537,52 @@ function App() {
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div>
           <button
             onClick={handleSave}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
+            className="w-full bg-black hover:bg-gray-800 text-white py-2.5 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
           >
             Apply Changes
           </button>
-          <button
-            onClick={() => {
-              chrome.runtime.sendMessage({ type: 'ELEMENT_DESELECTED' });
-              setIsSelected(false);
-              setElementData(null);
-            }}
-            className="py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
-          >
-            Cancel
-          </button>
         </div>
-
-        {/* Create PR Button (when GitHub connected and changes exist) */}
-        {isGithubConnected && githubChanges.length > 0 && (
-          <div className="mt-4">
-            <button
-              onClick={() => {
-                setShowPRModal(true);
-                if (!prTitle.trim()) setPrTitle('Update Tailwind classes');
-              }}
-              className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md border-none text-sm font-medium cursor-pointer"
-            >
-              Create Pull Request ({githubChanges.length} change{githubChanges.length !== 1 ? 's' : ''})
-            </button>
-          </div>
-        )}
 
         {/* PR Creation Modal - must be in this view too so it shows when element is selected */}
         {showPRModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-              <h2 className="text-lg font-bold mb-4">Create Pull Request</h2>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">PR Title:</label>
+            <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto relative">
+              <button
+                onClick={() => {
+                  setShowPRModal(false);
+                  setPrTitle('');
+                  setPrDescription('');
+                }}
+                className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded cursor-pointer border-none bg-transparent text-xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+              <h2 className="text-lg font-bold mb-4 pr-8">Create Pull Request</h2>
+              <div className="mb-4 text-left">
+                <label className="block text-sm font-medium mb-2">PR Title</label>
                 <input
                   type="text"
                   value={prTitle}
                   onChange={(e) => setPrTitle(e.target.value)}
                   placeholder="Update Tailwind classes"
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                  className="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-black"
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">PR Description:</label>
+              <div className="mb-4 text-left">
+                <label className="block text-sm font-medium mb-2">PR Description</label>
                 <textarea
                   value={prDescription}
                   onChange={(e) => setPrDescription(e.target.value)}
                   placeholder="Describe your changes..."
-                  className="w-full p-2 border border-gray-300 rounded text-sm min-h-[100px]"
+                  className="w-full p-2 border border-gray-300 rounded text-sm min-h-[100px] focus:outline-none focus:border-black"
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Select Changes:</label>
+              <div className="mb-4 text-left">
+                <label className="block text-sm font-medium mb-2">Select Changes</label>
                 <div className="border border-gray-300 rounded p-2 max-h-[200px] overflow-y-auto">
                   {githubChanges.map((change) => (
                     <label key={change.id} className="flex items-start mb-2 cursor-pointer">
@@ -613,25 +609,13 @@ function App() {
                   ))}
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCreatePR}
-                  disabled={isCreatingPR}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
-                >
-                  {isCreatingPR ? 'Creating PR...' : 'Create Pull Request'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPRModal(false);
-                    setPrTitle('');
-                    setPrDescription('');
-                  }}
-                  className="py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </div>
+              <button
+                onClick={handleCreatePR}
+                disabled={isCreatingPR}
+                className="w-full bg-black hover:bg-gray-800 disabled:bg-gray-400 text-white py-2 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
+              >
+                {isCreatingPR ? 'Creating PR...' : 'Create Pull Request'}
+              </button>
             </div>
           </div>
         )}
@@ -643,7 +627,6 @@ function App() {
   if (hoveredData && !isSelected) {
     return (
       <div className="p-4">
-        <h1 className="text-xl font-bold mb-2">Seam</h1>
         <p className="text-gray-600 mb-3">Hovering over: <span className="font-semibold">{hoveredData.tagName}</span></p>
         <p className="text-xs text-gray-400 mb-4">
           {selectionMode ? 'Click to select and edit' : 'Enable selection mode to edit'}
@@ -670,86 +653,128 @@ function App() {
   // Default state
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-2">Seam</h1>
-      <p className="text-gray-600 mb-3">Hover over an element to preview</p>
+      {/* Selection Mode - top, no background */}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-sm font-medium">Selection Mode</span>
+        <button
+          type="button"
+          title="Toggle selection mode"
+          onClick={() => {
+            const newMode = !selectionMode;
+            setSelectionMode(newMode);
+            chrome.runtime.sendMessage({
+              type: 'TOGGLE_SELECTION_MODE',
+              enabled: newMode
+            });
+          }}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-black transition-colors duration-200 focus:outline-none ${selectionMode ? 'bg-black' : 'bg-white'}`}
+        >
+          <span
+            className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-200 ease-in-out ${selectionMode ? 'left-[calc(100%-1.25rem)] h-5 w-5 bg-white' : 'left-px h-[1.2rem] w-[1.2rem] bg-black'}`}
+          />
+        </button>
+      </div>
 
       {/* Dev Server Connection */}
-      <div className={`mb-4 p-3 rounded-md border ${isConnected ? 'bg-green-100 border-green-500' : 'bg-yellow-100 border-yellow-500'}`}>
-        <div className="mb-2">
-          <label className="block text-xs font-medium mb-1">
-            Dev Server URL:
-          </label>
-          <div className="flex gap-1">
-            <input
-              type="text"
-              value={devServerUrl}
-              onChange={(e) => setDevServerUrl(e.target.value)}
-              placeholder="http://localhost:5173"
-              className="flex-1 py-1.5 px-2 border border-gray-300 rounded text-xs"
-            />
-            <button
-              onClick={handleConnect}
-              className={`py-1.5 px-3 text-white rounded border-none text-xs font-medium cursor-pointer ${isConnected ? 'bg-green-500' : 'bg-blue-500'}`}
-            >
-              {isConnected ? 'Connected' : 'Connect'}
-            </button>
+      <div className="mb-4 text-center">
+        {isConnected ? (
+          <div className="text-xs text-green-600">
+            ✓ Connected to dev server URL: {devServerUrl}
           </div>
-        </div>
-        <p className="text-[11px] text-gray-500 m-0">
-          {isConnected
-            ? '✓ Connected - Changes will be saved to source files'
-            : 'Connect to your dev server to persist changes to source code'}
-        </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowDevServerModal(true)}
+            className="text-xs underline cursor-pointer bg-transparent border-none p-0 hover:text-gray-600"
+          >
+            Connect to a dev server URL
+          </button>
+        )}
       </div>
 
+      {/* Dev Server URL Modal */}
+      {showDevServerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 max-w-md w-full mx-4 relative">
+            <button
+              onClick={() => setShowDevServerModal(false)}
+              className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded cursor-pointer border-none bg-transparent text-xl leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2 className="text-lg font-bold mb-4 pr-8">Connect to dev server</h2>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={devServerUrl}
+                onChange={(e) => setDevServerUrl(e.target.value)}
+                placeholder="http://localhost:5173"
+                className="flex-1 py-2 px-3 border border-gray-300 rounded text-sm"
+                autoFocus
+              />
+              <button
+                onClick={handleConnect}
+                className="py-2 px-4 bg-black hover:bg-gray-800 text-white rounded border-none text-sx cursor-pointer"
+              >
+                Connect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* GitHub Connection */}
-      <div className={`mb-4 p-3 rounded-md border ${isGithubConnected ? 'bg-green-100 border-green-500' : 'bg-yellow-100 border-yellow-500'}`}>
-        <div className="mb-2">
+      {isGithubConnected ? (
+        <div className="mb-4 text-center text-xs">
+          <span className="text-green-600">✓ Connected to {githubRepo}</span>
+          {' '}
+          <button
+            type="button"
+            onClick={() => {
+              setIsGithubConnected(false);
+              setGithubRepo('');
+              setGithubToken('');
+              setGithubUsername('');
+              chrome.storage.local.remove(['githubRepo', 'githubToken']);
+            }}
+            className="underline cursor-pointer bg-transparent border-none p-0 text-inherit hover:text-gray-600"
+          >
+             Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="mb-4">
           <button
             onClick={handleGithubConnect}
-            disabled={isGithubConnected || isConnectingGithub}
-            className={`w-full py-1.5 px-3 text-white rounded border-none text-xs font-medium cursor-pointer ${isGithubConnected
-              ? 'bg-green-500'
-              : isConnectingGithub
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-500 hover:bg-blue-600'
-              }`}
+            disabled={isConnectingGithub}
+            className={`w-full py-1.5 px-3 text-white rounded border-none text-xs font-medium cursor-pointer ${isConnectingGithub
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-black hover:bg-black'
+            }`}
           >
-            {isConnectingGithub
-              ? 'Connecting...'
-              : isGithubConnected
-                ? 'Connected'
-                : 'Connect with GitHub'}
+            {isConnectingGithub ? 'Connecting...' : 'Connect with GitHub'}
           </button>
-          {isGithubConnected && (
-            <button
-              onClick={() => {
-                setIsGithubConnected(false);
-                setGithubRepo('');
-                setGithubToken('');
-                setGithubUsername('');
-                chrome.storage.local.remove(['githubRepo', 'githubToken']);
-              }}
-              className="w-full mt-2 py-1.5 px-3 bg-red-500 hover:bg-red-600 text-white rounded border-none text-xs font-medium cursor-pointer"
-            >
-              Disconnect
-            </button>
-          )}
         </div>
-        <p className="text-[11px] text-gray-500 m-0">
-          {isGithubConnected
-            ? `✓ Connected to ${githubRepo} - Ready to create PRs`
-            : isConnectingGithub
-              ? 'Opening GitHub authorization...'
-              : 'Click "Connect with GitHub" to authorize and select a repository'}
-        </p>
-      </div>
+      )}
 
       {/* Repository Selection Modal */}
       {showRepoSelection && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-4">
+          <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto relative">
+            <button
+              onClick={() => {
+                setShowRepoSelection(false);
+                setGithubToken('');
+                setGithubRepositories([]);
+                setRepoSearchQuery('');
+              }}
+              className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded cursor-pointer border-none bg-transparent text-xl leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2 className="text-lg font-bold mb-4 pr-8">
               Select Repository {githubUsername && `(${githubUsername})`}
             </h2>
 
@@ -760,13 +785,13 @@ function App() {
                 value={repoSearchQuery}
                 onChange={(e) => setRepoSearchQuery(e.target.value)}
                 placeholder="Search repositories..."
-                className="w-full p-2 border border-gray-300 rounded text-sm"
+                className="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-black"
                 autoFocus
               />
             </div>
 
             {/* Repository list */}
-            <div className="border border-gray-300 rounded max-h-[400px] overflow-y-auto">
+            <div className="rounded max-h-[400px] overflow-y-auto">
               {githubRepositories
                 .filter((repo) =>
                   repo.full_name.toLowerCase().includes(repoSearchQuery.toLowerCase()) ||
@@ -776,7 +801,7 @@ function App() {
                   <button
                     key={repo.id}
                     onClick={() => handleRepoSelect(repo)}
-                    className="w-full text-left p-3 hover:bg-gray-100 border-b border-gray-200 last:border-b-0 transition-colors"
+                    className="w-full mb-2 text-left p-3 hover:bg-gray-100 border-b border-gray-200 last:border-b-0 transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -816,20 +841,6 @@ function App() {
             ).length === 0 && (
                 <p className="text-sm text-gray-500 text-center py-4">No repositories found</p>
               )}
-
-            <div className="mt-4">
-              <button
-                onClick={() => {
-                  setShowRepoSelection(false);
-                  setGithubToken('');
-                  setGithubRepositories([]);
-                  setRepoSearchQuery('');
-                }}
-                className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -839,67 +850,53 @@ function App() {
         <div className="mb-4">
           <button
             onClick={() => setShowPRModal(true)}
-            className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md border-none text-sm font-medium cursor-pointer"
+            className="w-full py-2.5 px-4 bg-black hover:bg-gray-800 text-white rounded-md border-none text-sm font-medium cursor-pointer"
           >
             Create Pull Request ({githubChanges.length} change{githubChanges.length !== 1 ? 's' : ''})
           </button>
         </div>
       )}
 
-      {/* Selection Mode */}
-      <div className={`p-3 rounded-md border-2 ${selectionMode ? 'bg-blue-100 border-blue-500' : 'bg-gray-100 border-gray-300'}`}>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">Selection Mode</span>
-          <button
-            onClick={() => {
-              const newMode = !selectionMode;
-              setSelectionMode(newMode);
-              chrome.runtime.sendMessage({
-                type: 'TOGGLE_SELECTION_MODE',
-                enabled: newMode
-              });
-            }}
-            className={`py-1.5 px-3 text-white rounded border-none text-xs font-medium cursor-pointer ${selectionMode ? 'bg-blue-600' : 'bg-gray-500'}`}
-          >
-            {selectionMode ? 'ON' : 'OFF'}
-          </button>
-        </div>
-        <p className="text-xs text-gray-500 m-0">
-          {selectionMode
-            ? 'Click any element to select and edit'
-            : 'Enable selection mode to click and edit elements'}
-        </p>
-      </div>
-
       {/* PR Creation Modal */}
       {showPRModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-4">Create Pull Request</h2>
+          <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto relative">
+            <button
+              onClick={() => {
+                setShowPRModal(false);
+                setPrTitle('');
+                setPrDescription('');
+              }}
+              className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded cursor-pointer border-none bg-transparent text-xl leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2 className="text-lg font-bold mb-4 pr-8">Create Pull Request</h2>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">PR Title:</label>
+            <div className="mb-4 text-left">
+              <label className="block text-sm font-medium mb-2">PR Title</label>
               <input
                 type="text"
                 value={prTitle}
                 onChange={(e) => setPrTitle(e.target.value)}
                 placeholder="Update Tailwind classes"
-                className="w-full p-2 border border-gray-300 rounded text-sm"
+                className="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-black"
               />
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">PR Description:</label>
+            <div className="mb-4 text-left">
+              <label className="block text-sm font-medium mb-2">PR Description</label>
               <textarea
                 value={prDescription}
                 onChange={(e) => setPrDescription(e.target.value)}
                 placeholder="Describe your changes..."
-                className="w-full p-2 border border-gray-300 rounded text-sm min-h-[100px]"
+                className="w-full p-2 border border-gray-300 rounded text-sm min-h-[100px] focus:outline-none focus:border-black"
               />
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Select Changes:</label>
+            <div className="mb-4 text-left">
+              <label className="block text-sm font-medium mb-2">Select Changes</label>
               <div className="border border-gray-300 rounded p-2 max-h-[200px] overflow-y-auto">
                 {githubChanges.map((change) => (
                   <label key={change.id} className="flex items-start mb-2 cursor-pointer">
@@ -927,25 +924,13 @@ function App() {
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={handleCreatePR}
-                disabled={isCreatingPR}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
-              >
-                {isCreatingPR ? 'Creating PR...' : 'Create Pull Request'}
-              </button>
-              <button
-                onClick={() => {
-                  setShowPRModal(false);
-                  setPrTitle('');
-                  setPrDescription('');
-                }}
-                className="py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border-none text-sm font-medium cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
+            <button
+              onClick={handleCreatePR}
+              disabled={isCreatingPR}
+              className="w-full bg-black hover:bg-gray-800 disabled:bg-gray-400 text-white py-2 px-4 rounded-md border-none text-sm font-medium cursor-pointer"
+            >
+              {isCreatingPR ? 'Creating PR...' : 'Create Pull Request'}
+            </button>
           </div>
         </div>
       )}

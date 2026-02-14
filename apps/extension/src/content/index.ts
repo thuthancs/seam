@@ -197,15 +197,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (targetElement) {
             const { className } = message.data;
             targetElement.className = className;
-
-            // If element was selected, update the selection data
-            if (selectedElement) {
-                const styleData = extractStyles(selectedElement);
-                chrome.runtime.sendMessage({
-                    type: 'ELEMENT_SELECTED',
-                    data: styleData
-                });
-            }
+            // Do NOT send ELEMENT_SELECTED here - the sidepanel already updated its state in handleSave.
+            // Sending ELEMENT_SELECTED would trigger fetchSourceClassNameExpression, which fetches the
+            // OLD value from the server (source not updated yet) and overwrites the displayed classes.
         }
         return true;
     } else if (message.type === 'TOGGLE_SELECTION_MODE') {
