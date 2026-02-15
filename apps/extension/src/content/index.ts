@@ -201,7 +201,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             // Sending ELEMENT_SELECTED would trigger fetchSourceClassNameExpression, which fetches the
             // OLD value from the server (source not updated yet) and overwrites the displayed classes.
         }
-        return true;
+        return false; // No response needed
     } else if (message.type === 'TOGGLE_SELECTION_MODE') {
         selectionModeEnabled = message.enabled;
         console.log('Selection mode toggled:', selectionModeEnabled);
@@ -216,7 +216,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 type: 'ELEMENT_DESELECTED'
             });
         }
-        return true;
+        return false; // No response needed
     }
-    return true;
+    return false;
 });

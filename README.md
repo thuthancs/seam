@@ -2,6 +2,18 @@
 
 this is project is built as part of treehacks 2026
 
+## Setup (works with any app)
+
+1. **Run your app**: `cd my-app && npm run dev` (any port)
+2. **Run Seam server**: `npx seam-server --project ./my-app --port 5175`  
+   Or from this repo: `cd apps/seam-server && npm run dev -- --project ../../apps/demo-app` (replace with your app path)
+3. **Load the extension** in Chrome, open the sidepanel, and connect to `http://localhost:5175`
+4. Use Seam as before: hover elements, edit Tailwind classes, persist to source files
+
+The server auto-discovers common entry files (`src/App.tsx`, `frontend/src/App.tsx`, etc.). Override with `--file path/to/App.tsx` for non-standard layouts or multiple files.
+
+**Demo-app:** The demo-app includes a Vite plugin that serves the API. You can connect directly to its dev server URL (e.g. `http://localhost:5173`) instead of running seam-server.
+
 ## day 1 - direct in-browser editing + ai-assited editing
 
 - Technical challenge: **Bidirectional Tailwind class parser**

@@ -76,6 +76,7 @@ function App() {
   const [githubRepositories, setGithubRepositories] = useState<GitHubRepository[]>([]);
   const [githubUsername, setGithubUsername] = useState<string>('');
   const [repoSearchQuery, setRepoSearchQuery] = useState<string>('');
+  const [githubPathPrefix, setGithubPathPrefix] = useState<string>('');
 
   // Fetch source className expression from dev server
   const fetchSourceClassNameExpression = useCallback(async (tagName: string, index?: number) => {
@@ -354,8 +355,9 @@ function App() {
         const repoPath = (() => {
           const p = change.filePath.replace(/\\/g, '/');
           const appsIdx = p.indexOf('apps/');
-          if (appsIdx !== -1) return p.slice(appsIdx);
-          return p;
+          const base = appsIdx !== -1 ? p.slice(appsIdx) : p;
+          const prefix = githubPathPrefix.trim().replace(/\/$/, '');
+          return prefix ? `${prefix}/${base}` : base;
         })();
         const list = changesByFile.get(repoPath) ?? [];
         list.push(change);
@@ -372,11 +374,23 @@ function App() {
       for (const [repoPath, fileChangesList] of changesByFile) {
         try {
           // Get current file content (fetch once per file)
-          const { content: currentContent, sha } = await getFileContent(
-            config,
-            repoPath,
-            branchName
-          );
+          // Try new branch first; fallback to base branch (GitHub may need a moment to propagate the new ref)
+          let currentContent: string;
+          let sha: string | undefined;
+          try {
+            const result = await getFileContent(config, repoPath, branchName);
+            currentContent = result.content;
+            sha = result.sha;
+          } catch (branchErr: unknown) {
+            const status = (branchErr as { status?: number })?.status;
+            if (status === 404) {
+              const baseResult = await getFileContent(config, repoPath, baseBranch);
+              currentContent = baseResult.content;
+              sha = baseResult.sha;
+            } else {
+              throw branchErr;
+            }
+          }
 
           // Apply all changes to this file in order
           let content = currentContent;
@@ -399,11 +413,22 @@ function App() {
           });
         } catch (error) {
           console.error(`Failed to process changes for ${repoPath}:`, error);
+          const status = (error as { status?: number; response?: { status?: number } })?.status ?? (error as { response?: { status?: number } })?.response?.status;
+          if (status === 404) {
+            throw new Error(
+              `File "${repoPath}" not found in ${parsed.owner}/${parsed.repo}. ` +
+              `Check that the file exists in the repo and the GitHub repo matches your project.`
+            );
+          }
+          throw error;
         }
       }
 
       if (fileChanges.length === 0) {
-        throw new Error('No changes could be applied');
+        throw new Error(
+          'No changes could be applied. Ensure the file paths exist in the GitHub repo ' +
+          `(${parsed.owner}/${parsed.repo}) and match your project structure.`
+        );
       }
 
       // Commit all changes
@@ -438,7 +463,7 @@ function App() {
 
   // Load saved dev server URL and GitHub config on mount
   useEffect(() => {
-    chrome.storage.local.get(['devServerUrl', 'githubRepo', 'githubToken', 'githubChanges'], (result) => {
+    chrome.storage.local.get(['devServerUrl', 'githubRepo', 'githubToken', 'githubPathPrefix', 'githubChanges'], (result) => {
       if (result.devServerUrl) {
         setDevServerUrl(result.devServerUrl);
         // Test connection
@@ -471,6 +496,9 @@ function App() {
         }
       }
 
+      if (result.githubPathPrefix) {
+        setGithubPathPrefix(result.githubPathPrefix);
+      }
       if (result.githubChanges) {
         setGithubChanges(result.githubChanges);
       }
@@ -694,11 +722,11 @@ function App() {
         </button>
       </div>
 
-      {/* Dev Server Connection */}
+      {/* Seam Server Connection */}
       <div className="mb-4 text-center">
         {isConnected ? (
           <div className="text-xs text-green-600">
-            ✓ Connected to dev server URL: {devServerUrl}
+            ✓ Connected to Seam server: {devServerUrl}
           </div>
         ) : (
           <button
@@ -706,12 +734,12 @@ function App() {
             onClick={() => setShowDevServerModal(true)}
             className="text-xs underline cursor-pointer bg-transparent border-none p-0 hover:text-gray-600"
           >
-            Connect to a dev server URL
+            Connect to Seam server
           </button>
         )}
       </div>
 
-      {/* Dev Server URL Modal */}
+      {/* Seam Server URL Modal */}
       {showDevServerModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-4 max-w-md w-full mx-4 relative">
@@ -722,13 +750,13 @@ function App() {
             >
               ×
             </button>
-            <h2 className="text-lg font-bold mb-4 pr-8">Connect to dev server</h2>
+            <h2 className="text-lg font-bold mb-4 pr-8">Connect to Seam server</h2>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={devServerUrl}
                 onChange={(e) => setDevServerUrl(e.target.value)}
-                placeholder="http://localhost:5173"
+                placeholder="http://localhost:5175"
                 className="flex-1 py-2 px-3 border border-gray-300 rounded text-sm"
                 autoFocus
               />
@@ -745,22 +773,37 @@ function App() {
 
       {/* GitHub Connection */}
       {isGithubConnected ? (
-        <div className="mb-4 text-center text-xs">
-          <span className="text-green-600">✓ Connected to {githubRepo}</span>
-          {' '}
-          <button
-            type="button"
-            onClick={() => {
-              setIsGithubConnected(false);
-              setGithubRepo('');
-              setGithubToken('');
-              setGithubUsername('');
-              chrome.storage.local.remove(['githubRepo', 'githubToken']);
+        <div className="mb-4 text-xs">
+          <div className="text-center mb-2">
+            <span className="text-green-600">✓ Connected to {githubRepo}</span>
+            {' '}
+            <button
+              type="button"
+              onClick={() => {
+                setIsGithubConnected(false);
+                setGithubRepo('');
+                setGithubToken('');
+                setGithubUsername('');
+                setGithubPathPrefix('');
+                chrome.storage.local.remove(['githubRepo', 'githubToken', 'githubPathPrefix']);
+              }}
+              className="underline cursor-pointer bg-transparent border-none p-0 text-inherit hover:text-gray-600"
+            >
+              Disconnect
+            </button>
+          </div>
+          <label className="block text-gray-600 mb-1">Path prefix (for monorepos)</label>
+          <input
+            type="text"
+            value={githubPathPrefix}
+            onChange={(e) => {
+              const v = e.target.value;
+              setGithubPathPrefix(v);
+              chrome.storage.local.set({ githubPathPrefix: v });
             }}
-            className="underline cursor-pointer bg-transparent border-none p-0 text-inherit hover:text-gray-600"
-          >
-             Disconnect
-          </button>
+            placeholder="e.g. frontend (if app is in frontend/)"
+            className="w-full py-1.5 px-2 border border-gray-300 rounded text-xs"
+          />
         </div>
       ) : (
         <div className="mb-4">
